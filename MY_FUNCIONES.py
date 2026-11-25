@@ -359,10 +359,10 @@ if __name__ == "__main__":
     print("Error Simpson en parábola (N=2):", err_simpson)
     assert err_simpson < tol
 
-    err_q0 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=0) - 2.0)
-    err_q1 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=1) - 2.0)
-    err_q2 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=2) - 2.0)
-    print(f"sin(x) [0, pi] -> Error q=0: {err_q0:.2e} | q=1: {err_q1:.2e} | q=2: {err_q2:.2e}")
+    err_q0 = abs(my_integracion_numerica(np.sin, 0.0, np.pi / 2, N=100, q=0) - 1.0)
+    err_q1 = abs(my_integracion_numerica(np.sin, 0.0, np.pi / 2, N=100, q=1) - 1.0)
+    err_q2 = abs(my_integracion_numerica(np.sin, 0.0, np.pi / 2, N=100, q=2) - 1.0)
+    print(f"sin(x) [0, pi/2] -> Error q=0: {err_q0:.2e} | q=1: {err_q1:.2e} | q=2: {err_q2:.2e}")
 
     assert err_q2 < err_q1 < err_q0
     assert err_q2 < 1e-8
