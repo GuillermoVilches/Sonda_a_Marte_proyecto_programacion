@@ -1,15 +1,18 @@
 """
-Resolución de sistemas de ecuaciones lineales Ax = b
+Resolución de sistemas de ecuaciones lineales Ax = b, regresión, interpolación e integración
 
-Métodos directos:   Eliminación de Gauss (con pivoteo parcial), Factorización LU (PA = LU)
-Métodos iterativos: Jacobi, Gauss-Seidel
+Métodos directos:       Eliminación de Gauss (con pivoteo parcial), Factorización LU (PA = LU)
+Métodos iterativos:     Jacobi, Gauss-Seidel
+Regresión e interp.:    Regresión lineal, Interpolación polinómica (Vandermonde y Lagrange), Interpolación 1D
+Integración numérica:   Fórmulas compuestas de Newton-Cotes (q = 0, 1, 2)
 """
 
 import numpy as np
 
 
+# 
 # MÉTODOS DIRECTOS
-
+# 
 
 def gauss(A, b):
     """Eliminación de Gauss con pivoteo parcial y sustitución hacia atrás."""
@@ -109,10 +112,7 @@ def es_diagonal_dominante(A):
 
 
 def jacobi(A, b, x0=None, tol=1e-8, max_iter=1000):
-    """
-    Método de Jacobi: x_i^(k+1) = (b_i - sum_{j!=i} a_ij x_j^(k)) / a_ii
-    Devuelve (solución, iteraciones, error).
-    """
+    """Método de Jacobi. Devuelve (solución, iteraciones, error)."""
     A, b, x = _verificar_iterativo(A, b, x0)
     D = np.diag(A)
     R = A - np.diagflat(D)
@@ -128,18 +128,15 @@ def jacobi(A, b, x0=None, tol=1e-8, max_iter=1000):
 
 
 def gauss_seidel(A, b, x0=None, tol=1e-8, max_iter=1000):
-    """
-    Método de Gauss-Seidel: usa los valores ya actualizados en la misma iteración.
-    Devuelve (solución, iteraciones, error).
-    """
+    """Método de Gauss-Seidel. Devuelve (solución, iteraciones, error)."""
     A, b, x = _verificar_iterativo(A, b, x0)
     n = len(b)
 
     for k in range(1, max_iter + 1):
         x_viejo = x.copy()
         for i in range(n):
-            s1 = A[i, :i] @ x[:i]            # valores nuevos
-            s2 = A[i, i + 1:] @ x_viejo[i + 1:]  # valores de la iteración anterior
+            s1 = A[i, :i] @ x[:i]                 # valores nuevos
+            s2 = A[i, i + 1:] @ x_viejo[i + 1:]   # valores de la iteración anterior
             x[i] = (b[i] - s1 - s2) / A[i, i]
         error = np.linalg.norm(x - x_viejo, np.inf)
         if error < tol:
@@ -149,64 +146,120 @@ def gauss_seidel(A, b, x0=None, tol=1e-8, max_iter=1000):
 
 
 # 
-# REGRESIÓN LINEAL
+# REGRESIÓN LINEAL E INTERPOLACIÓN
 # 
 
+def vandermonde(x, N, M):
+    """Construye la matriz de Vandermonde de dimensión M x N."""
+    return np.array([[x[j]**i for i in range(N)] for j in range(M)], dtype=float)
+
+
+def polynomial(w, x):
+    """Evalúa P(x) = sum(w[k] * x**k)."""
+    if type(x) == list:
+        x = np.array(x, dtype=float)
+    N = len(w)
+    return sum(w[k] * x**k for k in range(N))
+
+
 def my_regresion_lineal(x, y):
-    """
-    Calcula los coeficientes de la recta y = theta_1 * x + theta_0
-    usando la ecuación normal matricial: theta = (X^T * X)^(-1) * X^T * y
-    """
-    # Matriz de diseño X: columna de unos para theta_0 y columna con los datos x para theta_1
+    """Calcula los coeficientes de la recta y = theta_1 * x + theta_0."""
+    # Matriz de diseño X: columna de unos para theta_0 y columna con x para theta_1
     X = np.column_stack((np.ones_like(x), x))
 
-    # Resolución vectorizada por mínimos cuadrados
+    # Resolución por mínimos cuadrados
     theta = np.linalg.inv(X.T @ X) @ X.T @ y
 
-    theta_0 = theta[0]  # Ordenada en el origen [kPa]
-    theta_1 = theta[1]  # Pendiente o sensibilidad [kPa/V]
+    theta_0 = theta[0]  # Ordenada en el origen
+    theta_1 = theta[1]  # Pendiente
 
     return theta_0, theta_1
 
 
+def my_interpolacion_polinomica(x, y, xp=None):
+    """Interpolación polinómica de grado M - 1 mediante Vandermonde."""
+    M = len(x)
+    V = vandermonde(x, M, M)
+    w = gauss(V, y)
+
+    if xp is None:
+        return w
+    return polynomial(w, xp)
+
+
+def my_interpolacion_lagrange(x, y, xp):
+    """Interpolación polinómica mediante polinomios base de Lagrange."""
+    x = np.array(x, dtype=float)
+    y = np.array(y, dtype=float)
+    if type(xp) == list:
+        xp = np.array(xp, dtype=float)
+
+    M = len(x)
+    P = 0.0
+    for i in range(M):
+        L = 1.0
+        for j in range(M):
+            if j != i:
+                L = L * (xp - x[j]) / (x[i] - x[j])
+        P = P + y[i] * L
+    return P
+
+
+def my_interpolacion_1D(x, y, xp):
+    """Interpolación lineal a tramos en 1D sobre los nodos (x, y)."""
+    xs = np.array(x, dtype=float)
+    ys = np.array(y, dtype=float)
+    M = len(xs)
+
+    # Ordenar los nodos de menor a mayor según xs
+    for i in range(M - 1):
+        for j in range(i + 1, M):
+            if xs[j] < xs[i]:
+                (xs[i], xs[j]) = (xs[j], xs[i])
+                (ys[i], ys[j]) = (ys[j], ys[i])
+
+    # Si xp es un vector o lista
+    if type(xp) == np.ndarray or type(xp) == list:
+        yp = np.zeros(len(xp))
+        for k, val in enumerate(xp):
+            if val <= xs[0]:
+                yp[k] = ys[0]
+            elif val >= xs[M - 1]:
+                yp[k] = ys[M - 1]
+            else:
+                for i in range(M - 1):
+                    if xs[i] <= val <= xs[i + 1]:
+                        yp[k] = ys[i] + (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) * (val - xs[i])
+                        break
+        return yp
+
+    # Si xp es un escalar
+    else:
+        if xp <= xs[0]:
+            return float(ys[0])
+        elif xp >= xs[M - 1]:
+            return float(ys[M - 1])
+        else:
+            for i in range(M - 1):
+                if xs[i] <= xp <= xs[i + 1]:
+                    return float(ys[i] + (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) * (xp - xs[i]))
+
+
 # 
-# DEMOSTRACIÓN
+# INTEGRACIÓN NUMÉRICA (q = 0, 1, 2)
 # 
 
-if __name__ == "__main__":
-    np.set_printoptions(precision=8, suppress=True)
+def my_integracion_numerica(f, a, b, N=1000, q=1):
+    """Aproxima la integral de f en [a, b] con N subintervalos para q = 0, 1, 2."""
+    h = (b - a) / N
+    y = np.array([f(a + h * i) for i in range(N + 1)], dtype=float)
 
-    A = [[10, -1,  2,  0],
-         [-1, 11, -1,  3],
-         [ 2, -1, 10, -1],
-         [ 0,  3, -1,  8]]
-    b = [6, 25, -11, 15]
+    # q = 0: fórmula de los rectángulos
+    if q == 0:
+        return h * np.sum(y[:N])
 
-    print("Sistema Ax = b")
-    print("A =\n", np.array(A))
-    print("b =", np.array(b))
-    print("¿Diagonal dominante? ->", es_diagonal_dominante(A))
-    print()
+    # q = 1: fórmula del trapecio
+    elif q == 1:
+        return h * (0.5 * y[0] + np.sum(y[1:N]) + 0.5 * y[N])
 
-    print("Gauss            :", gauss(A, b))
-    print("LU               :", lu(A, b))
-
-    x, it, err = jacobi(A, b)
-    print(f"Jacobi           : {x}  ({it} iteraciones, error={err:.2e})")
-
-    x, it, err = gauss_seidel(A, b)
-    print(f"Gauss-Seidel     : {x}  ({it} iteraciones, error={err:.2e})")
-
-    print("\nSolución de referencia (numpy):", np.linalg.solve(A, b))
-
-    # Ejemplo de uso con los datos del tubo Pitot:
-    print("\n--- Regresión lineal (Tubo Pitot) ---")
-    V_sensor = np.array([0.5, 1.2, 2.3, 3.1, 4.0, 4.8])
-    P_sensor = np.array([10.1, 25.5, 48.0, 65.2, 83.9, 101.3])
-
-    theta_0, theta_1 = my_regresion_lineal(V_sensor, P_sensor)
-    P_ajustada = theta_1 * V_sensor + theta_0
-
-    print("theta_0 (ordenada):", theta_0)
-    print("theta_1 (pendiente):", theta_1)
-    print("P_ajustada:", P_ajustada)
+    # q = 2: fórmula de Simpson (requ
