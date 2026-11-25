@@ -10,9 +10,9 @@ Integración numérica:   Fórmulas compuestas de Newton-Cotes (q = 0, 1, 2)
 import numpy as np
 
 
-# 
+# ---------------------------------------------------------------------------
 # MÉTODOS DIRECTOS
-# 
+# ---------------------------------------------------------------------------
 
 def gauss(A, b):
     """Eliminación de Gauss con pivoteo parcial y sustitución hacia atrás."""
@@ -90,9 +90,9 @@ def lu(A, b):
     return x
 
 
-# 
+# ---------------------------------------------------------------------------
 # MÉTODOS ITERATIVOS
-# 
+# ---------------------------------------------------------------------------
 
 def _verificar_iterativo(A, b, x0):
     A = np.array(A, dtype=float)
@@ -145,9 +145,9 @@ def gauss_seidel(A, b, x0=None, tol=1e-8, max_iter=1000):
                        f"(último error: {error:.2e}).")
 
 
-# 
+# ---------------------------------------------------------------------------
 # REGRESIÓN LINEAL E INTERPOLACIÓN
-# 
+# ---------------------------------------------------------------------------
 
 def vandermonde(x, N, M):
     """Construye la matriz de Vandermonde de dimensión M x N."""
@@ -245,9 +245,9 @@ def my_interpolacion_1D(x, y, xp):
                     return float(ys[i] + (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) * (xp - xs[i]))
 
 
-# 
+# ---------------------------------------------------------------------------
 # INTEGRACIÓN NUMÉRICA (q = 0, 1, 2)
-# 
+# ---------------------------------------------------------------------------
 
 def my_integracion_numerica(f, a, b, N=1000, q=1):
     """Aproxima la integral de f en [a, b] con N subintervalos para q = 0, 1, 2."""
@@ -262,4 +262,109 @@ def my_integracion_numerica(f, a, b, N=1000, q=1):
     elif q == 1:
         return h * (0.5 * y[0] + np.sum(y[1:N]) + 0.5 * y[N])
 
-    # q = 2: fórmula de Simpson (requ
+    # q = 2: fórmula de Simpson (requiere N par)
+    elif q == 2:
+        if N % 2 != 0:
+            raise ValueError("Para q = 2 (Simpson), N debe ser un número par.")
+        return (h / 3.0) * (y[0] + 4.0 * np.sum(y[1:N:2]) + 2.0 * np.sum(y[2:N:2]) + y[N])
+
+    else:
+        raise ValueError("El grado q debe ser 0, 1 o 2.")
+
+
+# ---------------------------------------------------------------------------
+# VERIFICACIÓN DE TODAS LAS FUNCIONES
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    np.set_printoptions(precision=8, suppress=True)
+    tol = 1e-7
+
+    # 1. Sistemas lineales (Gauss, LU, Jacobi, Gauss-Seidel)
+    print("--- 1. Sistemas lineales ---")
+    A = np.array([[10, -1,  2,  0],
+                  [-1, 11, -1,  3],
+                  [ 2, -1, 10, -1],
+                  [ 0,  3, -1,  8]], dtype=float)
+    b = np.array([6, 25, -11, 15], dtype=float)
+
+    x_ref = np.linalg.solve(A, b)
+    x_gauss = gauss(A, b)
+    x_lu = lu(A, b)
+    x_jac, it_j, _ = jacobi(A, b)
+    x_gs, it_gs, _ = gauss_seidel(A, b)
+
+    print("Error Gauss        :", np.max(np.abs(x_gauss - x_ref)))
+    print("Error LU           :", np.max(np.abs(x_lu - x_ref)))
+    print(f"Error Jacobi       : {np.max(np.abs(x_jac - x_ref)):.2e} ({it_j} iter)")
+    print(f"Error Gauss-Seidel : {np.max(np.abs(x_gs - x_ref)):.2e} ({it_gs} iter)")
+
+    assert np.max(np.abs(x_gauss - x_ref)) < tol
+    assert np.max(np.abs(x_lu - x_ref)) < tol
+    assert np.max(np.abs(x_jac - x_ref)) < tol
+    assert np.max(np.abs(x_gs - x_ref)) < tol
+
+    # 2. Regresión lineal
+    print("\n--- 2. Regresión lineal ---")
+    V_sensor = np.array([0.5, 1.2, 2.3, 3.1, 4.0, 4.8])
+    P_sensor = np.array([10.1, 25.5, 48.0, 65.2, 83.9, 101.3])
+
+    theta_0, theta_1 = my_regresion_lineal(V_sensor, P_sensor)
+    m_ref, n_ref = np.polyfit(V_sensor, P_sensor, 1)
+
+    print("Error theta_0 :", abs(theta_0 - n_ref))
+    print("Error theta_1 :", abs(theta_1 - m_ref))
+
+    assert abs(theta_0 - n_ref) < tol
+    assert abs(theta_1 - m_ref) < tol
+
+    # 3. Interpolación polinómica (Vandermonde y Lagrange)
+    print("\n--- 3. Interpolación polinómica y Lagrange ---")
+    x_nodos = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    y_nodos = np.array([1.0, 2.0, 0.0, 5.0, 4.0, 3.0])
+    xp = np.linspace(0.0, 5.0, 50)
+
+    yp_vand = my_interpolacion_polinomica(x_nodos, y_nodos, xp)
+    yp_lagr = my_interpolacion_lagrange(x_nodos, y_nodos, xp)
+    yp_ref = np.polyval(np.polyfit(x_nodos, y_nodos, len(x_nodos) - 1), xp)
+
+    print("Error nodos Vandermonde :", np.max(np.abs(my_interpolacion_polinomica(x_nodos, y_nodos, x_nodos) - y_nodos)))
+    print("Error nodos Lagrange    :", np.max(np.abs(my_interpolacion_lagrange(x_nodos, y_nodos, x_nodos) - y_nodos)))
+    print("Error Vandermonde-Ref   :", np.max(np.abs(yp_vand - yp_ref)))
+    print("Error Lagrange-Ref      :", np.max(np.abs(yp_lagr - yp_ref)))
+
+    assert np.max(np.abs(yp_vand - yp_ref)) < tol
+    assert np.max(np.abs(yp_lagr - yp_ref)) < tol
+
+    # 4. Interpolación 1D (con nodos desordenados y puntos fuera de rango)
+    print("\n--- 4. Interpolación 1D ---")
+    x_desord = np.array([3.0, 0.0, 5.0, 1.0, 4.0, 2.0])
+    y_desord = np.array([5.0, 1.0, 3.0, 2.0, 4.0, 0.0])
+    xp_1d = np.array([-1.0, 0.5, 2.5, 4.5, 6.0])
+
+    yp_1d = my_interpolacion_1D(x_desord, y_desord, xp_1d)
+    yp_1d_ref = np.interp(xp_1d, x_nodos, y_nodos)
+    yp_esc = my_interpolacion_1D(x_desord, y_desord, 2.5)
+
+    print("Error vector vs np.interp  :", np.max(np.abs(yp_1d - yp_1d_ref)))
+    print("Error escalar vs np.interp :", abs(yp_esc - np.interp(2.5, x_nodos, y_nodos)))
+
+    assert np.max(np.abs(yp_1d - yp_1d_ref)) < tol
+    assert abs(yp_esc - np.interp(2.5, x_nodos, y_nodos)) < tol
+
+    # 5. Integración numérica (q = 0, 1, 2)
+    print("\n--- 5. Integración numérica ---")
+    f_cuad = lambda x: 3.0 * x**2 + 2.0 * x + 1.0
+    err_simpson = abs(my_integracion_numerica(f_cuad, 0.0, 2.0, N=2, q=2) - 14.0)
+    print("Error Simpson en parábola (N=2):", err_simpson)
+    assert err_simpson < tol
+
+    err_q0 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=0) - 2.0)
+    err_q1 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=1) - 2.0)
+    err_q2 = abs(my_integracion_numerica(np.sin, 0.0, np.pi, N=100, q=2) - 2.0)
+    print(f"sin(x) [0, pi] -> Error q=0: {err_q0:.2e} | q=1: {err_q1:.2e} | q=2: {err_q2:.2e}")
+
+    assert err_q2 < err_q1 < err_q0
+    assert err_q2 < 1e-8
+
+    print("\nTODAS LAS VERIFICACIONES OK")
