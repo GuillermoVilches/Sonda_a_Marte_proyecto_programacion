@@ -86,8 +86,10 @@ plt.tight_layout()
 plt.show()
 
 # 
-# FUNCIONES DE CÁLCULO NUMÉRICO (Modularizadas y vectorizadas)
+# LÓGICA DE CÁLCULO NUMÉRICO (Pegar a continuación en sonda_marte.py)
 # 
+from gui_sonda_marte import lanzar_dashboard
+
 
 def resolver_balance_masas():
     """
@@ -173,4 +175,43 @@ def encontrar_tiempo_critico(v_target=340.0, t0=60.0, tol=1e-8, max_iter=50):
     Corresponde al punto de inflexión de la curva logística, donde la pendiente
     f'(t) es máxima (31.25 m/s^2) y equidista de los extremos [0, 120] s. Así se
     evitan las regiones asintóticas con derivada casi nula y se garantiza
-    convergencia cuadrática en todo el rango del Slider [300, 100] """
+    convergencia cuadrática en todo el rango del Slider [300, 1000] m/s.
+    """
+    t = float(t0)
+    for iteraciones in range(1, max_iter + 1):
+        f_val = velocidad_teorica(t) - v_target
+        df_val = derivada_velocidad(t)
+        if abs(df_val) < 1e-12:
+            raise ValueError("Derivada casi nula: Newton-Raphson no puede continuar.")
+        t_nuevo = t - f_val / df_val
+        if abs(t_nuevo - t) < tol:
+            # Validación física: para Mach 1 (340 m/s), t_crit ~ 30.10 s,
+            # coherente con el paso al régimen supersónico durante el primer minuto.
+            return t_nuevo, iteraciones
+        t = t_nuevo
+    raise RuntimeError("Newton-Raphson no convergió en el máximo de iteraciones.")
+
+
+if __name__ == "__main__":
+    # Cálculo previo de los Apartados 1 a 5
+    masas, cond_A = resolver_balance_masas()
+    theta_1, theta_0 = calibrar_sensor(V_sensor, P_sensor)
+    h_vuelo = calcular_altitud(t_vuelo, v_vuelo)
+    rho_vuelo = estimar_densidad(h_vuelo, altitudes_tab, densidades_tab)
+    a_vuelo = calcular_aceleracion(t_vuelo, v_vuelo)
+
+    # Lanzar la interfaz gráfica pasando resultados y funciones del Apartado 6
+    lanzar_dashboard(
+        V_sensor=V_sensor,
+        P_sensor=P_sensor,
+        t_vuelo=t_vuelo,
+        masas=masas,
+        cond_A=cond_A,
+        theta_1=theta_1,
+        theta_0=theta_0,
+        h_vuelo=h_vuelo,
+        rho_vuelo=rho_vuelo,
+        a_vuelo=a_vuelo,
+        velocidad_teorica=velocidad_teorica,
+        encontrar_tiempo_critico=encontrar_tiempo_critico,
+    )
